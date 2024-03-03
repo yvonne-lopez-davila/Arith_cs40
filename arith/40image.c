@@ -31,12 +31,15 @@
 
 static void (*compress_or_decompress)(FILE *input) = compress40;
 
-void apply(int col, int row, A2Methods_UArray2 trim_arr, void *elem, void *og_img);
-void compress40 (FILE *input);
-void decompress40 (FILE *input);
+/* Compression functions */
 Pnm_ppm initialize_ppm(FILE *input);
-bool is_even(int x);
+void compress40 (FILE *input);
 void trim_odd_dims(Pnm_ppm image, int width, int height);
+void apply(int col, int row, A2Methods_UArray2 trim_arr, void *elem, void *og_img);
+bool is_even(int x);
+
+/* Decompression functions */
+void decompress40 (FILE *input);
 
 int main(int argc, char *argv[])
 {
@@ -78,8 +81,8 @@ void compress40 (FILE *input)
 {
         //grid of RGB int pixels todo del
         /* Initialize and populate pnm for uncompressed file */ 
-        Pnm_ppm uncompressed = initialize_ppm(input);
-        trim_odd_dims(uncompressed, uncompressed->width, uncompressed->height);
+        Pnm_ppm uncompressed = initialize_ppm(input); /* C1 */
+        trim_odd_dims(uncompressed, uncompressed->width, uncompressed->height); /* C2 */
 
         printf("W: %d \n ", uncompressed->width);
         printf("H: %d \n ", uncompressed->height);
@@ -88,6 +91,9 @@ void compress40 (FILE *input)
 // Decompress40 TODO (function contract)
 void decompress40 (FILE *input)
 {
+        /* Print uncompressed PPM */
+        Pnm_ppm uncompressed = initialize_ppm(input);
+
         (void) input;       
 
 }
@@ -95,6 +101,7 @@ void decompress40 (FILE *input)
 //trim_odd_dims TODO (function contract)
 void trim_odd_dims(Pnm_ppm image, int width, int height)
 {
+        printf("ORIGINAL WIDTH AND HEIGHT: %d, %d \n", width, height);
         /* Set width and height to trimmed dimensions */
         if (is_even(width) && is_even(height))
         {
@@ -109,9 +116,6 @@ void trim_odd_dims(Pnm_ppm image, int width, int height)
                 height--;
         }
 
-        printf("testing width pre : %d \n", image->width); 
-        printf("testing height pre: %d \n", image->height); 
-
         /* Initialize a new 2D array with new dims */
         A2Methods_UArray2 trim_arr = image->methods->new(width, height, sizeof(struct Pnm_rgb));
 
@@ -120,30 +124,33 @@ void trim_odd_dims(Pnm_ppm image, int width, int height)
         map(trim_arr, apply, image);
 
         /* Swap arrays and free untrimmed */
-        Pnm_ppm temp = image->pixels;
+        A2Methods_UArray2 temp = image->pixels;
         image->pixels = trim_arr;
-        Pnm_ppmfree(&temp);
-
-        printf("testing width after : %d \n", image->width); 
-        printf("testing height after: %d \n", image->height); 
-
+        image->width = width;
+        image->height = height;
+        image->methods->free(&temp);
 }
 
 // apply TODO (function contract)
 void apply(int col, int row, A2Methods_UArray2 trim_arr, void *elem, void *og_img)
 {
+        //printf("in apply \n");
         Pnm_ppm orig = (Pnm_ppm)og_img;
 
         /* Get element from orig img arr analagous position */
-        Pnm_rgb *pix_val = orig->methods->at(orig->pixels, col, row);
+        Pnm_rgb pix_val = orig->methods->at(orig->pixels, col, row);
 
         /* Copy RGB values to pix in trimmed array */
         Pnm_rgb curr_pix = (struct Pnm_rgb *) elem;
-        printf("\nTRACE 1\n");
+        //printf("\n(col, row) = %d, %d \n", col, row);
+
         // todo these lines are seg-faulting
-        curr_pix->red = (*pix_val)->red;
-        curr_pix->green = (*pix_val)->green;
-        curr_pix->blue = (*pix_val)->blue;
+        curr_pix->red = pix_val->red;
+        curr_pix->green = pix_val->green;
+        curr_pix->blue = pix_val->blue;
+
+        //printf("r_val old = %u\n", pix_val->red);
+        //printf("r_val new = %u\n", curr_pix->red);
 
         (void) trim_arr;        
 }
@@ -156,10 +163,9 @@ bool is_even(int x)
 //Initialize_ppm TODO (function contract)
 Pnm_ppm initialize_ppm(FILE *input)
 {
-        printf("TRACE 2\n");
         assert(input != NULL);
         
-        /* default to UArray2 methods */
+        /* Default to UArray2 methods */
         A2Methods_T methods = uarray2_methods_plain;
         assert(methods != NULL);
 
