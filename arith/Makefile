@@ -47,8 +47,7 @@ INCLUDES = $(shell echo *.h)
 ############### Rules ###############
 
 ## TODO_MODIFY below
-all: ppmdiff
-
+all: ppmdiff 40image
 
 ## Compile step (.c files -> .o files)
 # To get *any* .o file, compile its .c file with the following rule.
@@ -85,14 +84,13 @@ all: ppmdiff
 
  ##############################################################################
 
-## todo why didn't this work?
-#ppmdiff: ppmdiff.c
-#	$(CC) $(CFLAGS) $(IFLAGS) $< -o $@
-
 ppmdiff: ppmdiff.c a2plain.o uarray2.o
+	$(CC) $(IFLAGS) $(CFLAGS) $(LDFLAGS) $^ -o $@ $(LDLIBS)
+
+40image: 40image.c a2plain.o uarray2.o
 	$(CC) $(IFLAGS) $(CFLAGS) $(LDFLAGS) $^ -o $@ $(LDLIBS)
 
 clean:
 ##	rm -f ppmtrans a2test timing_test *.o
-	rm -f ppmdiff *.o
+	rm -f ppmdiff 40image *.o
 	
