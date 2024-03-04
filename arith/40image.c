@@ -35,7 +35,7 @@ static void (*compress_or_decompress)(FILE *input) = compress40;
 Pnm_ppm initialize_ppm(FILE *input);
 void compress40 (FILE *input);
 void trim_odd_dims(Pnm_ppm image, int width, int height);
-void apply(int col, int row, A2Methods_UArray2 trim_arr, void *elem, void *og_img);
+void copy_pixel_from_orig(int col, int row, A2Methods_UArray2 trim_arr, void *elem, void *og_img);
 bool is_even(int x);
 
 /* Decompression functions */
@@ -79,24 +79,76 @@ int main(int argc, char *argv[])
 // Compress40 TODO (function contract)
 void compress40 (FILE *input)
 {
+
         //grid of RGB int pixels todo del
-        /* Initialize and populate pnm for uncompressed file */ 
-        Pnm_ppm uncompressed = initialize_ppm(input); /* C1 */
+        /* C1 Initialize and populate pnm for uncompressed file */ 
+        Pnm_ppm uncompressed = initialize_ppm(input);
+/*
+printf("TRACE a\n");
+        decompress40(input); // test todo del
+printf("TRACE b\n");
+*/
+
+        /* C2 Update pnm pixels arr to have even dims */
         trim_odd_dims(uncompressed, uncompressed->width, uncompressed->height); /* C2 */
 
+        printf("MODIF WIDTH AND HEIGHT: %d, %d \n", uncompressed->width, uncompressed->height);
+        
+        /* C3 */
+
+/*
         printf("W: %d \n ", uncompressed->width);
         printf("H: %d \n ", uncompressed->height);
+*/
+
 }
 
 // Decompress40 TODO (function contract)
+// todo change input to correct input after compression has been fully implemented --> FILE *input
 void decompress40 (FILE *input)
 {
-        /* Print uncompressed PPM */
+        // TODO works when called from commandline, but not when called from compress
+
+
+
+        /* D11 Populate 2D array of RGB int vals */
         Pnm_ppm uncompressed = initialize_ppm(input);
 
+        printf("TRACE c \n");
+        /* D12 Print uncompressed PPM and free PPM */
+        Pnm_ppmwrite(stdout, uncompressed);
+        Pnm_ppmfree(&uncompressed);
+
+
+        // fclose(inputfile);  TODO put these in main after decompress
+        // exit(EXIT_SUCCESS); TODO   
         (void) input;       
 
 }
+
+
+// apply TODO (function contract)
+// 
+/*
+void apply(int col, int row, A2Methods_UArray2 trim_arr, void *elem, void *og_img)
+{
+        // for each pixel in trimmed array:
+                // transform int rgbs to floats
+                // transform float rgbs to component vid Y, Pb, Pr
+                // make a blocked 2d array with converted values (where each cell holds Y, Pb, Pr (struct) )
+
+}
+*/
+
+// todo contract
+// note: at an intermed step, this will hold converted float rep of rgb ints, is the name still okay?
+struct Pnm_component_vid
+{
+        float Y;
+        float Pb;
+        float Pr;
+};
+
 
 //trim_odd_dims TODO (function contract)
 void trim_odd_dims(Pnm_ppm image, int width, int height)
@@ -121,7 +173,7 @@ void trim_odd_dims(Pnm_ppm image, int width, int height)
 
         /* Populate with data from old array */
         A2Methods_mapfun *map = image->methods->map_default;
-        map(trim_arr, apply, image);
+        map(trim_arr, copy_pixel_from_orig, image);
 
         /* Swap arrays and free untrimmed */
         A2Methods_UArray2 temp = image->pixels;
@@ -132,7 +184,7 @@ void trim_odd_dims(Pnm_ppm image, int width, int height)
 }
 
 // apply TODO (function contract)
-void apply(int col, int row, A2Methods_UArray2 trim_arr, void *elem, void *og_img)
+void copy_pixel_from_orig(int col, int row, A2Methods_UArray2 trim_arr, void *elem, void *og_img)
 {
         //printf("in apply \n");
         Pnm_ppm orig = (Pnm_ppm)og_img;
@@ -140,11 +192,13 @@ void apply(int col, int row, A2Methods_UArray2 trim_arr, void *elem, void *og_im
         /* Get element from orig img arr analagous position */
         Pnm_rgb pix_val = orig->methods->at(orig->pixels, col, row);
 
+        // todo thought: what if this is already the 2D blocked array and we 
+        // just put in floats here?
+
         /* Copy RGB values to pix in trimmed array */
         Pnm_rgb curr_pix = (struct Pnm_rgb *) elem;
         //printf("\n(col, row) = %d, %d \n", col, row);
 
-        // todo these lines are seg-faulting
         curr_pix->red = pix_val->red;
         curr_pix->green = pix_val->green;
         curr_pix->blue = pix_val->blue;
@@ -163,6 +217,7 @@ bool is_even(int x)
 //Initialize_ppm TODO (function contract)
 Pnm_ppm initialize_ppm(FILE *input)
 {
+        
         assert(input != NULL);
         
         /* Default to UArray2 methods */
@@ -170,6 +225,9 @@ Pnm_ppm initialize_ppm(FILE *input)
         assert(methods != NULL);
 
         Pnm_ppm image = Pnm_ppmread(input, methods);
+        printf("trace d\n");
 
         return image;
 }
+
+// D12
