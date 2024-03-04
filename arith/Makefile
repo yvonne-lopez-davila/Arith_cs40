@@ -87,7 +87,7 @@ all: ppmdiff 40image
 ppmdiff: ppmdiff.c a2plain.o uarray2.o
 	$(CC) $(IFLAGS) $(CFLAGS) $(LDFLAGS) $^ -o $@ $(LDLIBS)
 
-40image: 40image.c a2plain.o uarray2.o
+40image: 40image.c a2plain.o uarray2.o a2blocked.o uarray2b.o
 	$(CC) $(IFLAGS) $(CFLAGS) $(LDFLAGS) $^ -o $@ $(LDLIBS)
 
 clean:
