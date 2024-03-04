@@ -28,6 +28,16 @@
 #include "a2plain.h"
 #include "a2blocked.h"
 
+const int BLOCKSIZE = 2;
+
+// todo contract
+// todo consider: at an intermed step, this could hold converted float rep of rgb ints, is the name still okay?
+struct Pnm_component_vid
+{
+        float Y;
+        float Pb;
+        float Pr;
+};
 
 static void (*compress_or_decompress)(FILE *input) = compress40;
 
@@ -82,37 +92,36 @@ void compress40 (FILE *input)
 
         //grid of RGB int pixels todo del
         /* C1 Initialize and populate pnm for uncompressed file */ 
-        Pnm_ppm uncompressed = initialize_ppm(input);
+        Pnm_ppm uncompressed = initialize_ppm(input); // rgb ints
 /*
-printf("TRACE a\n");
+printf("Test a\n");
         decompress40(input); // test todo del
-printf("TRACE b\n");
+printf("TRACE post test b\n");
 */
 
         /* C2 Update pnm pixels arr to have even dims */
-        trim_odd_dims(uncompressed, uncompressed->width, uncompressed->height); /* C2 */
+        // trim_odd_dims(uncompressed, uncompressed->width, uncompressed->height); /* C2 */
 
-        printf("MODIF WIDTH AND HEIGHT: %d, %d \n", uncompressed->width, uncompressed->height);
+        // printf("MODIF WIDTH AND HEIGHT: %d, %d \n", uncompressed->width, uncompressed->height);
         
         /* C3 */
 
-/*
+/*  
         printf("W: %d \n ", uncompressed->width);
         printf("H: %d \n ", uncompressed->height);
 */
-
+int x
 }
 
 // Decompress40 TODO (function contract)
 // todo change input to correct input after compression has been fully implemented --> FILE *input
-void decompress40 (FILE *input)
+void decompress40 (Pnm_ppm uncompressed)
 {
         // TODO works when called from commandline, but not when called from compress
 
 
-
         /* D11 Populate 2D array of RGB int vals */
-        Pnm_ppm uncompressed = initialize_ppm(input);
+        //Pnm_ppm uncompressed = initialize_ppm(input);
 
         printf("TRACE c \n");
         /* D12 Print uncompressed PPM and free PPM */
