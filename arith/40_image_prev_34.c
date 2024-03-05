@@ -4,12 +4,7 @@
  *     ylopez02 and cshaw03
  *     HW4 / Arith
  *
- *     40image program supports conversion between full-color portable pixmap 
- *     images and compressed binary image files in either direction, as 
- *     specified by client. 
- *     The program achieves its purpose by transforming rgb pixels to component 
- *     video space, and subsequently packing those pixels in memory, and 
- *     applying the inverse process for decompression.
+ *     TO DO:
  *
  *      Usage: 
  *          1) 40image -d [filename]
@@ -166,7 +161,6 @@ void compress40 (FILE *input)
 //         (void) comp_vid_arr;
         (void) trimmed_rgb_flts;
 
-//todo comment back in after tests 
         //Pnm_ppmfree(&uncompressed);
         //uncompressed = NULL; //todo ptr make null after 
 }

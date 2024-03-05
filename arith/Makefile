@@ -90,6 +90,7 @@ ppmdiff: ppmdiff.c a2plain.o uarray2.o
 40image: 40image.c a2plain.o uarray2.o a2blocked.o uarray2b.o
 	$(CC) $(IFLAGS) $(CFLAGS) $(LDFLAGS) $^ -o $@ $(LDLIBS)
 
+
 clean:
 ##	rm -f ppmtrans a2test timing_test *.o
 	rm -f ppmdiff 40image *.o
