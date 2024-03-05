@@ -1,4 +1,4 @@
-/*
+/* changes as of 3/4 meeting
  *     40image.c
  *     Authors: Yvonne Lopez Davila and Caroline Shaw
  *     ylopez02 and cshaw03
