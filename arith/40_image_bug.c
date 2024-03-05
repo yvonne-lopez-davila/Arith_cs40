@@ -133,8 +133,6 @@ void compress40 (FILE *input)
         A2Methods_T methods_p = uarray2_methods_plain;
         //A2Methods_mapfun *map_p = methods_p->map_default; // row maj
         assert(methods_b != NULL && methods_p != NULL);
-
-        fprintf(stderr, "TRACE in compress\n");
         
         /* C2/C3 Create trimmed arr of rgb floats */
         A2Methods_UArray2 trimmed_rgb_flts = 

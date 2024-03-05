@@ -71,7 +71,7 @@ A2Methods_UArray2 create_blocked_arr(int width, int height, int size, int blocks
 void fill_transformed_from_rgb_flt(int col, int row, A2Methods_UArray2 curr_arr, void *elem, void *trans_info);
 void init_cvs_from_rgb_floats(void *elem, struct rgb_float *rgb_pix);
 
-void fill_transformed_from_rgb_ints(int col, int row, A2Methods_UArray2 trim_arr, void *elem, void *og_img); // todo maybe merge
+void fill_transformed_from_rgb_ints(int col, int row, A2Methods_UArray2 trim_arr, void *elem, void *trans_info); // todo maybe merge
 void init_floats_from_rgb_ints(void *elem, Pnm_rgb pix_val);
 int make_even(int dim);
 
@@ -295,9 +295,18 @@ A2Methods_UArray2 create_trimmed_float_arr(Pnm_ppm image, int width, int height)
         /* Initialize a new 2D array with new dims */
         A2Methods_UArray2 trim_arr = image->methods->new(width, height, sizeof(struct rgb_float));
 
+        /* Initialize prev array info */
+        // todo helper
+        struct copy_info *pixels_info = malloc(sizeof(pixels_info));
+        assert(pixels_info != NULL);
+        pixels_info->prev_arr = image->pixels;
+        pixels_info->prev_methods = uarray2_methods_plain;
+        pixels_info->transFun = init_floats_from_rgb_ints;
+
+
         /* Populate with data from old array */
         A2Methods_mapfun *map = image->methods->map_default;
-        map(trim_arr, fill_transformed_from_rgb_ints, image);
+        map(trim_arr, fill_transformed_from_rgb_ints, pixels_info);
 
         fprintf(stderr, "POST WIDTH AND HEIGHT: %d, %d \n", width, height);
 
@@ -318,16 +327,18 @@ void init_floats_from_rgb_ints(void *elem, Pnm_rgb pix_val)
 // TODO MERGE
 // apply TODO (function contract)
 // rgb ints -> floats
-void fill_transformed_from_rgb_ints(int col, int row, A2Methods_UArray2 trim_arr, void *elem, void *og_img)
+void fill_transformed_from_rgb_ints(int col, int row, A2Methods_UArray2 trim_arr, void *elem, void *trans_info)
 {
-        Pnm_ppm orig = (Pnm_ppm)og_img;
+        struct copy_info *info = trans_info;
+        //Pnm_ppm orig = (Pnm_ppm)og_img;
 
         /* Get element from orig img arr analagous position */
         // todo: if we initialize this as a void ptr, can we reuse other func?
-        Pnm_rgb pix_val = orig->methods->at(orig->pixels, col, row);
+        Pnm_rgb pix_val = info->prev_methods->at(info->prev_arr, col, row);
 
         // make this a function ptr instead
-        init_floats_from_rgb_ints(elem, pix_val);
+        //init_floats_from_rgb_ints(elem, pix_val);
+        info->transFun(elem, pix_val);
 /*
         fprintf(stderr, "r_val old = %u\n", pix_val->red);
         fprintf(stderr, "r_val new = %.4f\n", ((struct rgb_float *)elem)->red);
