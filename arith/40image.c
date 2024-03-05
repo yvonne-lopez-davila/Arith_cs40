@@ -48,21 +48,32 @@ struct component_vid
         float Pr;
 };
 
+struct copy_info
+{
+        A2Methods_UArray2 prev_arr;
+        A2Methods_T prev_methods;
+        void (*transFun)();
+};
+
 static void (*compress_or_decompress)(FILE *input) = compress40;
 
 /* Compression functions */
 Pnm_ppm initialize_ppm(FILE *input);
 void compress40 (FILE *input);
 A2Methods_UArray2 create_trimmed_float_arr(Pnm_ppm image, int width, int height);
-void pop_with_rgb_floats(int col, int row, A2Methods_UArray2 trim_arr, void *elem, void *og_img);
 bool is_even(int x);
 A2Methods_UArray2 create_blocked_arr(int width, int height, int size, int blocksize, A2Methods_T methods);
-void pop_cvs_from_rgb(int col, int row, A2Methods_UArray2 comp_vid_arr, void *elem, void *og_img);
-void rgb_to_comp_vid_space(struct component_vid *cvs_pix, struct rgb_float *rgb_pix);
+void fill_transformed_from_rgb_flt(int col, int row, A2Methods_UArray2 curr_arr, void *elem, void *trans_info);
+void init_cvs_from_rgb_floats(void *elem, struct rgb_float *rgb_pix);
+
+void fill_transformed_from_rgb_ints(int col, int row, A2Methods_UArray2 trim_arr, void *elem, void *og_img); // todo maybe merge
+void init_floats_from_rgb_ints(void *elem, Pnm_rgb pix_val);
+int make_even(int dim);
 
 /* Decompression functions */
 void decompress40 (FILE *input);
-void pop_with_rgb_ints(int col, int row, A2Methods_UArray2 rgb_int_arr, void *elem, void *rgb_float_arr);
+//void pop_with_rgb_ints(int col, int row, A2Methods_UArray2 rgb_int_arr, void *elem, void *rgb_float_arr); // deleted
+void init_ints_from_rgb_floats(void *elem, struct rgb_float *float_rgb);
 
 void decompressTest(A2Methods_UArray2 rgb_float_arr, Pnm_ppm uncompressed); // todo delete testing function
 
@@ -105,31 +116,44 @@ int main(int argc, char *argv[])
 //todo maybe no new line needs to be added
 void compress40 (FILE *input)
 {
-        //todo declare a methods out here
- 
-
         /* C1 Initialize and populate pnm for uncompressed file */ 
-        Pnm_ppm uncompressed = initialize_ppm(input); // rgb ints
-        // //decompressTest(uncompressed); // passed C1
-        A2Methods_T methods_p = uarray2_methods_plain; // todo review this
+        Pnm_ppm uncompressed = initialize_ppm(input); /* rgb ints */
+        // decompressTest(uncompressed); // passed C1 todo del
+     
+        /* Initialize blocked methods */
+        // plain methods: uncompressed->methods // todo del this
+        A2Methods_T methods_b = uarray2_methods_blocked;
+        //A2Methods_mapfun *map_b = methods_b->map_default; // block maj
+        A2Methods_T methods_p = uarray2_methods_plain;
+        //A2Methods_mapfun *map_p = methods_p->map_default; // row maj
+        assert(methods_b != NULL && methods_p != NULL);
 
-        /* C2/C3 Create trimmed arr with rgb float types */
-        A2Methods_UArray2 trimmed_rgb_flts = create_trimmed_float_arr(uncompressed, uncompressed->width, uncompressed->height); // todo maybe make width and height pointers so that those variables update
-        //decompressTest(trimmed_rgb_flts, uncompressed); // C3 passed
-        
-        /* C4 Transform RGB floats to component video space */
-                //initialize new blocked arr with 2 blocksize
-                // apply--> transform to Y, Pb, Pr (float to float) 
-        /* Initialize blocked array with component video pixels */
-        A2Methods_T methods_b = uarray2_methods_blocked; // todo review this
+        /* C2/C3 Create trimmed arr of rgb floats */
+        A2Methods_UArray2 trimmed_rgb_flts = 
+        create_trimmed_float_arr(uncompressed,
+        make_even(uncompressed->width), 
+        make_even(uncompressed->height)); // C3 passed, trimmed is p
+        //decompressTest(trimmed_rgb_flts, uncompressed); 
 
-        A2Methods_UArray2 comp_vid_arr = create_blocked_arr(methods_p->width(trimmed_rgb_flts), methods_p->height(trimmed_rgb_flts), sizeof(struct component_vid), BLOCKSIZE, methods_b);
+        /* Initialize blocked array with component video pixels */ 
+        A2Methods_UArray2 comp_vid_arr = 
+        create_blocked_arr(methods_p->width(trimmed_rgb_flts),
+        methods_p->height(trimmed_rgb_flts),
+        sizeof(struct component_vid), BLOCKSIZE, methods_b);
 
         fprintf(stderr, "WIDTH: %d \n", methods_b->width(comp_vid_arr));
         fprintf(stderr, "HEIGHT: %d \n", methods_b->height(comp_vid_arr));
 
-        A2Methods_mapfun *map = methods_b->map_block_major; // row maj
-        map(comp_vid_arr, pop_cvs_from_rgb, trimmed_rgb_flts);
+        /* Initialize rgb to cvs transfromation info */
+        // todo could put this init'n in helper func
+        struct copy_info *info = malloc(sizeof(info));
+        info->prev_arr = trimmed_rgb_flts;
+        info->prev_methods = methods_p;
+        info->transFun = init_cvs_from_rgb_floats;
+
+        /* C4 Transform RGB floats to component video space */
+        methods_b->map_default(comp_vid_arr, fill_transformed_from_rgb_flt, info);
+
 /*  
         printf("W: %d \n ", uncompressed->width);
         printf("H: %d \n ", uncompressed->height);
@@ -145,26 +169,33 @@ void compress40 (FILE *input)
 // todo change input to correct input after compression has been fully implemented --> FILE *input
 void decompressTest(A2Methods_UArray2 rgb_float_arr, Pnm_ppm uncompressed)
 {
-        // TODO works when called from commandline, but not when called from compress
-
         /* D10 Convert RGB floats to RGB ints*/
 
         /* D11 Populate 2D array of RGB int vals */
         /* Initialize a new 2D array with new dims */
         ////////////////////////////////////////////////////////////////////////
-        A2Methods_T methods = uarray2_methods_plain; // todo review this
-        assert(methods != NULL);
+        A2Methods_T methods_p = uarray2_methods_plain; // todo review this
+        assert(methods_p != NULL);
 
-        A2Methods_UArray2 pixel = methods->new(methods->width(rgb_float_arr), methods->height(rgb_float_arr), sizeof(struct Pnm_rgb));
+        // creates pixels arr of pnm rgb ints
+        A2Methods_UArray2 pixel = methods_p->new(methods_p->width(rgb_float_arr), methods_p->height(rgb_float_arr), sizeof(struct Pnm_rgb));
 
-        A2Methods_mapfun *map = methods->map_default; // row maj
-        map(pixel, pop_with_rgb_ints, rgb_float_arr);
+        /* Initialize rgb to cvs transfromation info */
+        // todo helper (2nd time)
+        struct copy_info *info = malloc(sizeof(info));
+        info->prev_arr = rgb_float_arr;
+        info->prev_methods = methods_p;
+        info->transFun = init_ints_from_rgb_floats;
+
+        //A2Methods_mapfun *map = methods_p->map_default; // row maj
+        // methods_p->map_default(pixel, pop_with_rgb_ints, rgb_float_arr);
+        methods_p->map_default(pixel, fill_transformed_from_rgb_flt, info);
 
         ///////////////////////////////////////////////////////////////////////
 
-        uncompressed->width = methods->width(pixel);
+        uncompressed->width = methods_p->width(pixel);
         uncompressed->pixels = pixel;
-        uncompressed->height = methods->height(pixel);
+        uncompressed->height = methods_p->height(pixel);
         
         /* D12 Print uncompressed PPM and free PPM */
         Pnm_ppmwrite(stdout, uncompressed);
@@ -177,35 +208,28 @@ void decompressTest(A2Methods_UArray2 rgb_float_arr, Pnm_ppm uncompressed)
 
 // cl take in a struct with og_img and a function pointer,
 // apply TODO (function contract)
-void pop_cvs_from_rgb(int col, int row, A2Methods_UArray2 comp_vid_arr, void *elem, void *og_img)
+// curr array is comp_vid_arr
+void fill_transformed_from_rgb_flt(int col, int row, A2Methods_UArray2 curr_arr, void *elem, void *trans_info)
 {
         //fprintf(stderr, "(col, row) = %d, %d\n", col, row);
-
-        A2Methods_UArray2 orig = (A2Methods_UArray2)og_img;
-
-        A2Methods_T methods_plain = uarray2_methods_plain; // todo review this
-        assert(methods_plain != NULL);
+        struct copy_info *info = trans_info;
 
         /* Get element from orig img arr analagous position */
-        struct rgb_float *pix_val = methods_plain->at(orig, col, row);
-        //fprintf(stderr, "TRACE AA\n");
+        struct rgb_float *pix_val = info->prev_methods->at(info->prev_arr, col, row);
 
         /* Populate new arr with transformed float vals*/
-        /* Copy RGB values to pix in trimmed array */
-        struct component_vid *cvs_pix = (struct component_vid *)elem;
-        rgb_to_comp_vid_space(cvs_pix, pix_val);
-
+        info->transFun(elem, pix_val);
 /*
         fprintf(stderr, "r_val old = %.4f\n", pix_val->red);
-        fprintf(stderr, "r_val new = %.4f\n", cvs_pix->Y);
+        fprintf(stderr, "r_val new = %.4f\n", ((struct component_vid *)elem)->Y);
 */
-
-        (void) comp_vid_arr;        
+        (void) curr_arr;        
 }
 
-// cvs = component video space
-void rgb_to_comp_vid_space(struct component_vid *cvs_pix, struct rgb_float *rgb_pix)
+// todo contract
+void init_cvs_from_rgb_floats(void *elem, struct rgb_float *rgb_pix)
 {
+        struct component_vid *cvs_pix = (struct component_vid *)elem;
         cvs_pix->Y = .299 * rgb_pix->red + 0.587 * rgb_pix->green + 0.114 * rgb_pix->blue;
         cvs_pix->Pb = -0.168736 * rgb_pix->red - 0.331264 *  rgb_pix->green + 0.5 * rgb_pix->blue;
         cvs_pix->Pr = 0.5 * rgb_pix->red - 0.418688 * rgb_pix->green - 0.081312 * rgb_pix->blue;
@@ -243,90 +267,75 @@ A2Methods_UArray2 create_blocked_arr(int width, int height, int size, int blocks
         return blocked_arr;
 }
 
+//todo contract
+int make_even(int dim)
+{
+        if (!is_even(dim))
+        {
+                return --dim;
+        }
+        return dim;
+}
 
 //trim_odd_dims TODO (function contract)
 // todo can probably make this and above a single function if add size parameter and some way of knowing whether to set block size (pass in methods)
 A2Methods_UArray2 create_trimmed_float_arr(Pnm_ppm image, int width, int height)
 {
         ///// todo maybe put this part in separate helper function get trimmed dims////////////////////
-        fprintf(stderr, "ORIGINAL WIDTH AND HEIGHT: %d, %d \n", width, height);
-        /* Set width and height to trimmed dimensions */
-        if (!is_even(width))
-        {
-                width--;
-        }
-        if (!is_even(height))
-        {  
-                height--;
-        }
-
+        //fprintf(stderr, "TRIM WIDTH AND HEIGHT: %d, %d \n", width, height);
+        
         /* Initialize a new 2D array with new dims */
         A2Methods_UArray2 trim_arr = image->methods->new(width, height, sizeof(struct rgb_float));
 
         /* Populate with data from old array */
         A2Methods_mapfun *map = image->methods->map_default;
-        map(trim_arr, pop_with_rgb_floats, image);
+        map(trim_arr, fill_transformed_from_rgb_ints, image);
 
         fprintf(stderr, "POST WIDTH AND HEIGHT: %d, %d \n", width, height);
 
         return trim_arr;
 }
 
+// Copy RGB values to pix in trimmed array
+void init_floats_from_rgb_ints(void *elem, Pnm_rgb pix_val)
+{
+        struct rgb_float *curr_pix = (struct rgb_float *)elem;
+
+        curr_pix->red = (float)pix_val->red;
+        curr_pix->green = (float)pix_val->green;
+        curr_pix->blue = (float)pix_val->blue;        
+}
 
 // todo cleanup merge copying functions: cl take in a struct with og_img and a function pointer,
+// TODO MERGE
 // apply TODO (function contract)
-void pop_with_rgb_floats(int col, int row, A2Methods_UArray2 trim_arr, void *elem, void *og_img)
+// rgb ints -> floats
+void fill_transformed_from_rgb_ints(int col, int row, A2Methods_UArray2 trim_arr, void *elem, void *og_img)
 {
-        //printf("in apply \n");
         Pnm_ppm orig = (Pnm_ppm)og_img;
 
         /* Get element from orig img arr analagous position */
+        // todo: if we initialize this as a void ptr, can we reuse other func?
         Pnm_rgb pix_val = orig->methods->at(orig->pixels, col, row);
 
-        //////////// todo put in helper function (passed as ptr) /////////
-        /* Copy RGB values to pix in trimmed array */
-        struct rgb_float *curr_pix = (struct rgb_float *)elem; // would need to change typecast here
-        curr_pix->red = (float)pix_val->red; // curr_pix->Y = transformed(pix_val->red)
-        curr_pix->green = (float)pix_val->green;
-        curr_pix->blue = (float)pix_val->blue;
-        ////////////////////////////////////////////////////////////////
+        // make this a function ptr instead
+        init_floats_from_rgb_ints(elem, pix_val);
 /*
         fprintf(stderr, "r_val old = %u\n", pix_val->red);
-        fprintf(stderr, "r_val new = %.4f\n", curr_pix->red);
+        fprintf(stderr, "r_val new = %.4f\n", ((struct rgb_float *)elem)->red);
 */
-
         (void) trim_arr;        
 }
 
 // todo contract
 // updates int pixel to hold float values (rounded)
-void pop_rgb_ints_from_floats(Pnm_rgb int_struct, struct rgb_float *float_rgb)
+void init_ints_from_rgb_floats(void *elem, struct rgb_float *float_rgb)
 {
-        int_struct->red = (int)float_rgb->red;
-        int_struct->green = (int)float_rgb->green;
-        int_struct->blue = (int)float_rgb->blue;
-}
-
-//todo contract
-void pop_with_rgb_ints(int col, int row, A2Methods_UArray2 rgb_int_arr, void *elem, void *rgb_float_arr)
-{
-        //fprintf(stderr, "(col, row) = %d, %d\n", col, row);
-        A2Methods_UArray2 orig = (A2Methods_UArray2)rgb_float_arr;
-
-        A2Methods_T methods = uarray2_methods_plain; // todo review this
-        assert(methods != NULL);
-
-        /* Get element from orig img arr analagous position */
-        struct rgb_float *pix_val = methods->at(orig, col, row);
-
-        //struct *rgb_float
-
         Pnm_rgb int_pix = (struct Pnm_rgb *)elem;
-        
-        /* Copy RGB float values to RGB int vals in new array */
-        pop_rgb_ints_from_floats(int_pix, pix_val);
-        
-        (void) rgb_int_arr;        
+
+        int_pix->red = (int)float_rgb->red;
+        int_pix->green = (int)float_rgb->green;
+        int_pix->blue = (int)float_rgb->blue;
 }
 
 bool is_even(int x)
@@ -351,3 +360,35 @@ Pnm_ppm initialize_ppm(FILE *input)
 }
 
 // D12
+
+
+
+//todo contract
+// void pop_with_rgb_ints(int col, int row, A2Methods_UArray2 rgb_int_arr, void *elem, void *rgb_float_arr)
+// {
+//         //fprintf(stderr, "(col, row) = %d, %d\n", col, row);
+//         A2Methods_UArray2 orig = (A2Methods_UArray2)rgb_float_arr;
+
+//         A2Methods_T methods = uarray2_methods_plain; // todo review this
+//         assert(methods != NULL);
+
+//         /* Get element from orig img arr analagous position */
+//         struct rgb_float *pix_val = methods->at(orig, col, row);
+
+//         //struct *rgb_float
+
+//         Pnm_rgb int_pix = (struct Pnm_rgb *)elem;
+        
+//         /* Copy RGB float values to RGB int vals in new array */
+//         init_ints_from_rgb_floats(int_pix, pix_val);
+        
+//         (void) rgb_int_arr;        
+// }
+
+
+// ONE FUNCTION: fill_transformed_arr(int col, int row, A2Methods_UArray2 curr_arr, void *elem, void *trans_info)
+        // populates an array of rgb ints from rgb floats
+        // populates an array of cvs floats from rgb floats
+
+// SIMILAR:
+        // fill_transformed_from_rgb_ints: pop's arr rgb floats from rgb ints
