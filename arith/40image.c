@@ -209,8 +209,16 @@ void compress40 (FILE *input)
         
         methods_b->map_default(comp_vid_arr, get_packed_cvs_block, block_info);
         
-        fprintf(stderr, "Pb_avg numerator: %.4f\n", block_info->Pb_avg);
+ //       fprintf(stderr, "Pb_avg numerator: %.4f\n", block_info->Pb_avg);
+/*
+        int x = -1.1;
+        unsigned test = (unsigned)round(x);
+        fprintf(stderr, "rounded us %d: %u \n", x, test); // test = 4294967295
 
+        fprintf(stderr, "test -1: %u \n", (unsigned)((int)(round(-15.345)))); // 0
+        fprintf(stderr, "test 0: %u \n", (unsigned)round(0)); // 0
+        fprintf(stderr, "test 1: %u \n", (unsigned)round(1)); // 1
+*/
 /*  
         printf("W: %d \n ", uncompressed->width);
         printf("H: %d \n ", uncompressed->height);
@@ -569,40 +577,43 @@ void get_packed_cvs_block(int col, int row, A2Methods_UArray2 cvs_arr2b, void *e
 
 void transform_luminance_to_coeffs(A2Methods_UArray2 cvs_arr, A2Methods_T methods, int col, int row, struct cvs_block *curr_iWord)
 {
+        /* Get positions of previous cells in current cvs block */
         struct pixel_float *Y1_pos = methods->at(cvs_arr, col - 1, row - 1);
         struct pixel_float *Y2_pos = methods->at(cvs_arr, col, row - 1);
         struct pixel_float *Y3_pos = methods->at(cvs_arr, col - 1, row);
         struct pixel_float *Y4_pos = methods->at(cvs_arr, col, row);
 
+        /* Initialize luminance float values for a block */
         float Y1 = Y1_pos->r_Y;
         float Y2 = Y2_pos->r_Y;
         float Y3 = Y3_pos->r_Y;
         float Y4 = Y4_pos->r_Y;
         
+        /* Apply discrete cosine transformation to cvs luminance vals */
         float a = (Y4 + Y3 + Y2 + Y1) / 4.0;
         float b = (Y4 + Y3 - Y2 - Y1) / 4.0;
         float c = (Y4 - Y3 + Y2 - Y1) / 4.0;
         float d = (Y4 - Y3 - Y2 + Y1) / 4.0;
-        // todo: these values seem a bit high
-        fprintf(stdout, "float a: %.4f\n", a);
+
 /*
+        fprintf(stdout, "float a: %.4f\n", a);
         fprintf(stdout, "float b: %.4f\n", b);
         fprintf(stdout, "float c: %.4f\n", c);
         fprintf(stdout, "float d: %.4f\n", d);
 */
-        convert_coeff_to_signed(a);
- 
-        // convert b, c, d to signed ints
-        // map +/-.3 range to +/-15 range (ie: use proportions)
 
 
-        /* Need these to be ints first */
-/*
-        curr_iWord->a = a;
-        curr_iWord->b = b;
-        curr_iWord->c = c;
-        curr_iWord->d = d;
+        curr_iWord->a = (unsigned)round(a); //todo: this doesn't work since bits are preserved (need 2s complement representation)
+        curr_iWord->b = convert_coeff_to_signed(b);
+        curr_iWord->c = convert_coeff_to_signed(c);
+        curr_iWord->d = convert_coeff_to_signed(b);
+
+//        fprintf(stdout, "int b: %d\n", curr_iWord->b);
+        fprintf(stdout, "int c: %d\n", curr_iWord->c);
+        fprintf(stdout, "int d: %d\n", curr_iWord->d);
+        /*
 */
+
         (void)curr_iWord;
         (void) a;
         (void) b;
@@ -614,9 +625,13 @@ void transform_luminance_to_coeffs(A2Methods_UArray2 cvs_arr, A2Methods_T method
 // returns unisgned in b/w -15/15
 signed convert_coeff_to_signed(float coeff)
 {
+        fprintf(stdout, "b input float: %.4f\n", coeff);
         signed quant_mapped = round(D_QUANT_RANGE * (coeff / FL_QUANT_RANGE));
         if (quant_mapped > D_QUANT_RANGE) {
+                fprintf(stdout, "EXCEEDS RANGE\n");
                 quant_mapped = D_QUANT_RANGE;
         }
+        fprintf(stdout, "quantized: %d\n", quant_mapped);
+
         return quant_mapped;
 }
