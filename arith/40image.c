@@ -68,6 +68,7 @@ struct copy_info
         A2Methods_UArray2 prev_arr;
         A2Methods_T prev_methods;
         void (*transFun)();
+        unsigned pnm_maxval;
 };
 
 struct block_info
@@ -94,15 +95,18 @@ void get_packed_cvs_block(int col, int row, A2Methods_UArray2 cvs_arr2b, void *e
 void fill_transformed_from_rgb_flt(int col, int row, A2Methods_UArray2 curr_arr, void *elem, void *trans_info);
 void fill_transformed_from_rgb_ints(int col, int row, A2Methods_UArray2 trim_arr, void *elem, void *trans_info); // todo maybe merge
 void fill_cvs_float_from_block(int col, int row, A2Methods_UArray2 cvs_arr2b, void *elem, void *codeword_info_arr2p);
+void fill_int_arr_from_rgb_flt(int col, int row, A2Methods_UArray2 curr_arr, void *elem, void *trans_info);
 
 /* Transformation (helpers) */
 void transform_rgb_floats_to_cvs(void *elem, struct pixel_float *rgb_pix);
 void transform_rgb_ints_to_floats(void *elem, Pnm_rgb pix_val, int pnm_maxval);
-void transform_rgb_floats_to_ints(void *elem, struct pixel_float *float_rgb);
+void transform_rgb_floats_to_ints(void *elem, struct pixel_float *float_rgb, unsigned maxval);
 void transform_cvs_to_rgb_float(void *elem, struct pixel_float *cvs_pix);
 A2Methods_UArray2 create_blocked_arr(int width, int height, int size, int blocksize, A2Methods_T methods);
 void transform_luminance_to_coeffs(A2Methods_UArray2 cvs_arr, A2Methods_T methods, int col, int row, struct cvs_block *curr_iWord);
+void transform_coeffs_to_luminance(struct cvs_block *curr_iWord, struct pixel_float *b1_cvs, struct pixel_float *b2_cvs, struct pixel_float *b3_cvs, struct pixel_float *b4_cvs);
 unsigned transform_a_to_unsigned(float a);
+void set_unquantized_chroma_for_block(struct cvs_block *curr_iWord, struct pixel_float *b1_cvs, struct pixel_float *b2_cvs, struct pixel_float *b3_cvs, struct pixel_float *b4_cvs);
 
 int make_even(int dim);
 signed convert_coeff_to_signed(float coeff);
@@ -189,7 +193,16 @@ void compress40 (FILE *input)
 
          /* C4 Updates CVS arr to hold values transformed from RGB floats */
          /* Initialize rgb to cvs transfromation info */
-         struct copy_info *info = initialize_copy_info(trimmed_rgb_flts, methods_p, transform_rgb_floats_to_cvs); // todo free
+        // struct copy_info *info = initialize_copy_info(trimmed_rgb_flts, methods_p, transform_rgb_floats_to_cvs); // todo free
+
+        struct copy_info *info = malloc(sizeof(struct copy_info));
+        assert(info != NULL);
+
+        info->prev_arr = trimmed_rgb_flts;
+        info->prev_methods = methods_p;
+        info->transFun = transform_rgb_floats_to_cvs;
+        info->pnm_maxval = -1; // unused here
+
          /* Map rgb floats to cvs*/
          methods_b->map_default(comp_vid_arr, fill_transformed_from_rgb_flt, info);
   //       printf("COMPRESSION done \n");
@@ -209,15 +222,14 @@ void compress40 (FILE *input)
         block_info->Pb_avg = 0;
         block_info->Pr_avg = 0;
         
+        /* Populates codeword info array with coords for codeword packing */
         methods_b->map_default(comp_vid_arr, get_packed_cvs_block, block_info);
+        decompressTest(codeword_info_arr, uncompressed); // E = .3553
         
 /*  
         printf("W: %d \n ", uncompressed->width);
         printf("H: %d \n ", uncompressed->height);
 */
-        (void) comp_vid_arr;
-        (void) trimmed_rgb_flts; // array of rgb floats
-
 //todo comment back in after tests 
         // Pnm_ppmfree(&uncompressed);
         // uncompressed = NULL; //todo ptr make null after 
@@ -228,6 +240,7 @@ void compress40 (FILE *input)
 // todo change input to correct input after compression has been fully implemented --> FILE *input
 void decompressTest(A2Methods_UArray2 codeword_info_arr, Pnm_ppm uncompressed)
 {
+
         /* Initialize plain and blocked methods */
         A2Methods_T methods_p = uarray2_methods_plain;        
         A2Methods_T methods_b = uarray2_methods_blocked;
@@ -239,7 +252,7 @@ void decompressTest(A2Methods_UArray2 codeword_info_arr, Pnm_ppm uncompressed)
         (BLOCKSIZE * methods_p->height(codeword_info_arr)),
         sizeof(struct pixel_float), BLOCKSIZE, methods_b);
 
-        /* D8 Convert quantized chroma floats to chroma (unquantize P avgs)*/
+        /* D8 Convert cvs block ints to cvs floats */
         // iterate through comp_vid arr in block major order, and iterate 4 times more slowly through codeword_info_arr 
         methods_p->map_default(codeword_info_arr, fill_cvs_float_from_block, comp_vid_arr);
 
@@ -247,20 +260,21 @@ void decompressTest(A2Methods_UArray2 codeword_info_arr, Pnm_ppm uncompressed)
         /* D9 Convert CVS float to RGB floats */
         // initialize comp_vid_array info
         //struct copy_info *cvs_info = initialize_copy_info(comp_vid_arr, methods_b, transform_cvs_to_rgb_float); // todo free
-
         struct copy_info *cvs_info = malloc(sizeof(struct copy_info));
         assert(cvs_info != NULL);
         cvs_info->prev_arr = comp_vid_arr;
         cvs_info->prev_methods = methods_b;
         cvs_info->transFun = transform_cvs_to_rgb_float;
+        cvs_info->pnm_maxval = 2;
 
         /* Create rgb float array */
         A2Methods_UArray2 rgb_float_arr = methods_p->new(methods_b->width(comp_vid_arr), methods_b->height(comp_vid_arr), sizeof(struct pixel_float)); 
 /*
         fprintf(stderr, "w: %d, h: %d \n", methods_b->width(comp_vid_arr), methods_b->height(comp_vid_arr));
 */
-
+        /* CVS float to RGB float */
         methods_p->map_default(rgb_float_arr, fill_transformed_from_rgb_flt, cvs_info);
+        fprintf(stderr, "TRACE\n");
 //////////////////////////////////////////////////////////////////////////
 
         /* D11 Populate 2D array of RGB int vals */
@@ -271,14 +285,22 @@ void decompressTest(A2Methods_UArray2 codeword_info_arr, Pnm_ppm uncompressed)
         A2Methods_UArray2 pixel = methods_p->new(methods_p->width(rgb_float_arr), methods_p->height(rgb_float_arr), sizeof(struct Pnm_rgb));
 
         /* Initialize rgb float to rgb int transfromation info */
+        /*
         struct copy_info *rgb_fl_info = initialize_copy_info(rgb_float_arr, methods_p, transform_rgb_floats_to_ints); // todo free
+        */
 
-        // A2Methods_mapfun *map = methods_p->map_default; // row maj
-        // methods_p->map_default(pixel, pop_with_rgb_ints, rgb_float_arr);
+        struct copy_info *rgb_fl_info = malloc(sizeof(struct copy_info));
+        assert(rgb_fl_info != NULL);
+        rgb_fl_info->prev_arr = rgb_float_arr;
+        rgb_fl_info->prev_methods = methods_p;
+        rgb_fl_info->transFun = transform_rgb_floats_to_ints;
+        rgb_fl_info->pnm_maxval = uncompressed->denominator;
 
-        /* D10 Populate RGB ints pixel array with RGB floats */
+        fprintf(stderr, "MAXVAL BEFORE CALL: %u\n", rgb_fl_info->pnm_maxval);
+
+        /* D10 Populate with RGB ints pixel array (RGB floats to RGB ints)*/
         // could lose a bit more data here because rounding floats to ints
-        methods_p->map_default(pixel, fill_transformed_from_rgb_flt, rgb_fl_info); // this is in C3 E test, which ppmdiffs to 0.0000
+        methods_p->map_default(pixel, fill_int_arr_from_rgb_flt, rgb_fl_info); // this is in C3 E test, which ppmdiffs to 0.0000
 
         ///////////////////////////////////////////////////////////////////////
 
@@ -333,6 +355,26 @@ void fill_transformed_from_rgb_flt(int col, int row, A2Methods_UArray2 curr_arr,
         (void) curr_arr;        
 }
 
+void fill_int_arr_from_rgb_flt(int col, int row, A2Methods_UArray2 curr_arr, void *elem, void *trans_info)
+{
+        //fprintf(stderr, "(col, row) = %d, %d\n", col, row);
+        struct copy_info *info = trans_info;
+
+        /* Get element from orig img arr analagous position */
+        struct pixel_float *pix_val = info->prev_methods->at(info->prev_arr, col, row); // casting a cvs float as an rgb float todo del
+
+        /* Populate new arr with transformed float vals*/
+        transform_rgb_floats_to_ints(elem, pix_val, info->pnm_maxval); // 1st param is (current rgb float pixel), 2nd param holds rgb_float holding (cvs float) values todo del
+/*
+*/
+        // fprintf(stderr, "r_val old = %.4f\n", pix_val->r_Y);
+        //fprintf(stderr, "R new = %u\n", ((struct Pnm_rgb *)elem)->red);
+        // fprintf(stderr, "G new = %u\n", ((struct Pnm_rgb *)elem)->green);
+        // fprintf(stderr, "B new = %u\n", ((struct Pnm_rgb *)elem)->blue);
+
+        (void) curr_arr;        
+}
+
 // todo contract- transform_rgb_floats_to_cvs
 void transform_rgb_floats_to_cvs(void *elem, struct pixel_float *rgb_pix)
 {
@@ -359,7 +401,12 @@ void transform_cvs_to_rgb_float(void *elem, struct pixel_float *cvs_pix)
         rgb_pix->b_Pr = 1.0 * cvs_pix->r_Y + 1.772 * cvs_pix->g_Pb + 0.0 * cvs_pix->b_Pr;
 
         fprintf(stderr, "CVS Y: %.4f \n", cvs_pix->r_Y);
+        fprintf(stderr, "CVS Pb: %.4f \n", cvs_pix->g_Pb);
+        fprintf(stderr, "CVS Pr: %.4f \n", cvs_pix->b_Pr);
+
         fprintf(stderr, "RGB float r: %.4f \n", rgb_pix->r_Y);
+        fprintf(stderr, "RGB float g: %.4f \n", rgb_pix->g_Pb);
+        fprintf(stderr, "RGB float b: %.4f \n", rgb_pix->b_Pr);
 }
 
 
@@ -474,18 +521,19 @@ void fill_transformed_from_rgb_ints(int col, int row, A2Methods_UArray2 trim_arr
 // todo contract- transform_rgb_floats_to_ints
 // updates int pixel to hold float values (rounded)
 // RGB float to RGB int
-void transform_rgb_floats_to_ints(void *elem, struct pixel_float *float_rgb)
+void transform_rgb_floats_to_ints(void *elem, struct pixel_float *float_rgb, unsigned maxval)
 {
         Pnm_rgb int_pix = (struct Pnm_rgb *)elem;
+        fprintf(stderr, "MAXVAL: %u\n", maxval);
 /*
         fprintf(stderr, "FLOAT VAL r: %.4f\n", float_rgb->r_Y);
         fprintf(stderr, "FLOAT VAL g: %.4f\n", float_rgb->g_Pb);                fprintf(stderr, "FLOAT VAL b: %.4f\n", float_rgb->b_Pr);
         // /fprintf(stderr, "FLOAT VAL: %.4f\n", float_rgb->r_Y)
 */
 
-        int_pix->red = (int)float_rgb->r_Y;
-        int_pix->green = (int)float_rgb->g_Pb;
-        int_pix->blue = (int)float_rgb->b_Pr;
+        int_pix->red = round(float_rgb->r_Y * maxval);
+        int_pix->green = (round)(float_rgb->g_Pb * maxval);
+        int_pix->blue = (round)(float_rgb->b_Pr *maxval);
 /*
         fprintf(stderr, "INT VAL r: %u\n", int_pix->red);
         fprintf(stderr, "INT VAL g: %u\n", int_pix->green);
@@ -654,17 +702,25 @@ void fill_cvs_float_from_block(int col, int row, A2Methods_UArray2 codeword_info
         /* Get word info for info corresponding to codeword at curr index */
         struct cvs_block *curr_iWord = (struct cvs_block *)elem;
 
-        //struct pixel_float **cvs_positions = (struct pixel_float **)malloc((BLOCKSIZE * BLOCKSIZE) * sizeof(struct pixel_float *));
-
         // Get indices of cells in block that maps to curr word index
         struct pixel_float *b1_cvs = meth_b->at(cvs_arr, (col * 2), (row * 2));
-        struct pixel_float *b2_cvs = meth_b->at(cvs_arr, (col * 2), (row * 2));
-        struct pixel_float *b3_cvs = meth_b->at(cvs_arr, (col * 2), (row * 2));
-        struct pixel_float *b4_cvs = meth_b->at(cvs_arr, (col * 2), (row * 2));
+        struct pixel_float *b2_cvs = meth_b->at(cvs_arr, (col * 2) + 1, (row * 2));
+        struct pixel_float *b3_cvs = meth_b->at(cvs_arr, (col * 2), ((row * 2) + 1));
+        struct pixel_float *b4_cvs = meth_b->at(cvs_arr, (col * 2) + 1, ((row * 2) + 1));
 
 
 // todo put in a helper func --> take in a pixel float position and set both
         /* Set float avg Pb and Pr values for each block from US indices */
+        set_unquantized_chroma_for_block(curr_iWord, b1_cvs, b2_cvs, b3_cvs, b4_cvs);
+       
+        /* Transform cosine coefficients to luminance values */
+        transform_coeffs_to_luminance(curr_iWord, b1_cvs, b2_cvs, b3_cvs, b4_cvs);
+
+        (void)codeword_info_arr2p;
+}
+
+void set_unquantized_chroma_for_block(struct cvs_block *curr_iWord, struct pixel_float *b1_cvs, struct pixel_float *b2_cvs, struct pixel_float *b3_cvs, struct pixel_float *b4_cvs)
+{
         b1_cvs->g_Pb = Arith40_chroma_of_index(curr_iWord->Pb_index);
         b1_cvs->b_Pr = Arith40_chroma_of_index(curr_iWord->Pr_index);
 
@@ -676,30 +732,18 @@ void fill_cvs_float_from_block(int col, int row, A2Methods_UArray2 codeword_info
 
         b4_cvs->g_Pb = Arith40_chroma_of_index(curr_iWord->Pb_index);
         b4_cvs->b_Pr = Arith40_chroma_of_index(curr_iWord->Pr_index);
-//////////////////////////////////////////////////////////////////////////
-       
-        /* Transform cosine coefficients to luminance values */
-        //transform_coeffs_to_luminance();
-
-        (void) b1_cvs;
-        (void) meth_b;
-        (void) cvs_arr;
-
-        (void)col;
-        (void)row;
-        (void)cvs_arr2b;
-        (void)elem;
-        (void)codeword_info_arr2p;
 }
 
 //if we take in positions instead, then we only need to calculate positions once
 // don't need array anymore since we have a pointers to the cells we need
 // dont need methods, don't need col or row 
 void transform_coeffs_to_luminance(struct cvs_block *curr_iWord, struct pixel_float *b1_cvs, struct pixel_float *b2_cvs, struct pixel_float *b3_cvs, struct pixel_float *b4_cvs)
-// void transform_coeffs_to_luminance(signed a, unsigned b, unsigned c, unsigned d, struct cvs_block *curr_iWord)
 {
-        float Y1 = (float)(curr_iWord->a - curr_iWord->b - curr_iWord->c + curr_iWord->d);
-        float Y2 = (float)(curr_iWord->a - curr_iWord->b + curr_iWord->c - curr_iWord->d);
-        float Y3 = (float)(curr_iWord->a + curr_iWord->b - curr_iWord->c - curr_iWord->d);
-        float Y4 = (float)(curr_iWord->a + curr_iWord->b + curr_iWord->c + curr_iWord->d);
+        /* Initialize luminance cells of a block in row major order */
+        b1_cvs->r_Y = (float)(curr_iWord->a - curr_iWord->b - curr_iWord->c + curr_iWord->d);
+        b2_cvs->r_Y = (float)(curr_iWord->a - curr_iWord->b + curr_iWord->c - curr_iWord->d);
+        b3_cvs->r_Y = (float)(curr_iWord->a + curr_iWord->b - curr_iWord->c - curr_iWord->d);
+        b4_cvs->r_Y = (float)(curr_iWord->a + curr_iWord->b + curr_iWord->c + curr_iWord->d);
+
+        //fprintf(stdout, "Luminance: %.4f \n", b1_cvs->r_Y);        
 }
