@@ -32,7 +32,7 @@ LDFLAGS = -g -L/comp/40/build/lib -L/usr/sup/cii40/lib64
 # All programs cii40 (Hanson binaries) and *may* need -lm (math)
 # 40locality is a catch-all for this assignment, netpbm is needed for pnm
 # rt is for the "real time" timing library, which contains the clock support
-LDLIBS = -l40locality -lnetpbm -lcii40 -lm -lrt
+LDLIBS = -l40locality -lnetpbm -lcii40 -lm -lrt -larith40
 
 # Collect all .h files in your directory.
 # This way, you can never forget to add
@@ -90,8 +90,10 @@ ppmdiff: ppmdiff.c a2plain.o uarray2.o
 40image: 40image.c a2plain.o uarray2.o a2blocked.o uarray2b.o
 	$(CC) $(IFLAGS) $(CFLAGS) $(LDFLAGS) $^ -o $@ $(LDLIBS)
 
+temp: temp40.c a2plain.o uarray2.o a2blocked.o uarray2b.o
+	$(CC) $(IFLAGS) $(CFLAGS) $(LDFLAGS) $^ -o $@ $(LDLIBS)
 
 clean:
 ##	rm -f ppmtrans a2test timing_test *.o
-	rm -f ppmdiff 40image *.o
+	rm -f ppmdiff 40image temp *.o
 	
