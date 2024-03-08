@@ -38,6 +38,8 @@
 #include "a2blocked.h"
 #include "arith40.h"
 
+#include "bitpack.h"
+
 const int BLOCKSIZE = 2;
 const float FL_QUANT_RANGE = 0.3;
 const float D_QUANT_RANGE = 15;
@@ -154,7 +156,21 @@ int main(int argc, char *argv[])
         return EXIT_SUCCESS; 
 }
 
-// Compress40 TODO (function contract)
+/********** compress40 ********
+ *
+ * Description: 
+ *      Compresses a PPM image to a compressed binary image file
+ * Parameters:
+ *      FILE *input:     file pointer to uncompressed image
+ * Return: 
+ *      void
+ * Expects:
+ *      input is a valid file pointer to a PPM image
+ * Notes:
+ *      The function compresses the image and writes the compressed
+ *      binary image to standard output.
+ ************************/
+ 
 //todo maybe no new line needs to be added
 void compress40 (FILE *input)
 {
@@ -224,18 +240,42 @@ void compress40 (FILE *input)
         
         /* Populates codeword info array with coords for codeword packing */
         methods_b->map_default(comp_vid_arr, get_packed_cvs_block, block_info);
-        decompressTest(codeword_info_arr, uncompressed); // E = .3553
-        
+        decompressTest(codeword_info_arr, uncompressed); // E = .0023
+
+/* bitpack testing
+        assert(Bitpack_getu(Bitpack_newu(255, 6, 3, 4), 6, 3) == 4);
+        uint64_t word = 512;
+        uint64_t w = 2;
+        uint64_t lsb = 0;
+        int64_t val = -3;
+        uint64_t lsb2 = w + lsb + 20;
+        uint64_t w2 = 15;
+
+        assert(Bitpack_getu(Bitpack_newu(word, w, lsb, val), w2, lsb2) == Bitpack_getu(word, w2, lsb2));
+*/
 /*  
         printf("W: %d \n ", uncompressed->width);
         printf("H: %d \n ", uncompressed->height);
 */
+
 //todo comment back in after tests 
         // Pnm_ppmfree(&uncompressed);
         // uncompressed = NULL; //todo ptr make null after 
 }
 
-//function contract
+/********** decompressTest ********
+ *
+ * Description: 
+ *     Test function for decompression
+ * Parameters:
+ *     A2Methods_UArray2 codeword_info_arr: 2D array of codeword info
+ * Return: 
+ *      void
+ * Expects:
+ *      A2Methods_UArray2 codeword_info_arr: 2D array of codeword info
+ * Notes:
+ *      This function is a test function for decompression. It is not used in the final implementation.
+ ************************/
 // todo remove this function, just here for testing
 // todo change input to correct input after compression has been fully implemented --> FILE *input
 void decompressTest(A2Methods_UArray2 codeword_info_arr, Pnm_ppm uncompressed)
@@ -317,7 +357,18 @@ void decompressTest(A2Methods_UArray2 codeword_info_arr, Pnm_ppm uncompressed)
         // exit(EXIT_SUCCESS); TODO 
 }
 
-//function contract- copy_info
+/********** copy_info ********
+ *
+ * Description: 
+ *     Test function for decompression
+ * Parameters:
+ *     A2Methods_UArray2 codeword_info_arr: 2D array of codeword info
+ * Return: 
+ *      void
+ * Expects:
+ *      A2Methods_UArray2 codeword_info_arr: 2D array of codeword info
+ *
+ ************************/
 // create and return a struct
 // note: client responsibility to free
 struct copy_info *initialize_copy_info(A2Methods_UArray2 prev_arr, A2Methods_T prev_methods, void (*transFun)())
