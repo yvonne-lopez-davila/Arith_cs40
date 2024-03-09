@@ -192,21 +192,21 @@ void compress40 (FILE *input)
 
         /* C6 a Convert chroma averages to quantized*/
         /* Initialize array of cvs block coordinates with 1/BLOCKSIZE dims*/
-        // A2Methods_UArray2 cvs_arr2b = methods_p->new((methods_p->width(trimmed_rgb_flts)) / BLOCKSIZE, (methods_p->height(trimmed_rgb_flts)) / BLOCKSIZE, sizeof(struct cvs_block));
+        A2Methods_UArray2 cvs_arr2b = methods_p->new((methods_p->width(trimmed_rgb_flts)) / BLOCKSIZE, (methods_p->height(trimmed_rgb_flts)) / BLOCKSIZE, sizeof(struct cvs_block));
 
-        // (void)cvs_arr2b;
+        (void)cvs_arr2b;
         
-        // /* Initialize cl info for cvs transformation */
-        // struct cvs_block *block_info = malloc(sizeof(struct cvs_block)); 
-        // assert(block_info != NULL);
-        // block_info->a = 0;
-        // block_info->b = 0;
-        // block_info->c = 0;
-        // block_info->d = 0;
-        // block_info->quant_Pb = 0;
-        // block_info->quant_Pr = 0;
+        /* Initialize cl info for cvs transformation */
+        struct cvs_block *block_info = malloc(sizeof(struct cvs_block)); 
+        assert(block_info != NULL);
+        block_info->a = 0;
+        block_info->b = 0;
+        block_info->c = 0;
+        block_info->d = 0;
+        block_info->quant_Pb = 0;
+        block_info->quant_Pr = 0;
         
-        // methods_p->map_default(comp_vid_arr, get_packed_cvs_block, block_info);
+        methods_p->map_default(comp_vid_arr, get_packed_cvs_block, block_info);
 
 /*  
         printf("W: %d \n ", uncompressed->width);

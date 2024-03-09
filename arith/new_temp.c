@@ -130,8 +130,6 @@ void set_unquantized_chroma_for_block(struct cvs_block *curr_iWord, struct pixel
 int make_even(int dim);
 signed convert_coeff_to_signed(float coeff);
 
-void print_codewords(A2Methods_UArray2 codewords, int width, int height);
-void print_word(int col, int row, A2Methods_UArray2 codewords, void *elem, void* cl);
 
 struct copy_info *initialize_copy_info(A2Methods_UArray2 prev_arr, A2Methods_T prev_methods, void (*transFun)());
 
@@ -242,7 +240,7 @@ void compress40 (FILE *input)
         methods_p->free(&trimmed_rgb_flts);
          
   //       printf("COMPRESSION done \n");
-        // decompressTest(comp_vid_arr, uncompressed); E = .0023
+//        decompressTest(comp_vid_arr, uncompressed);// E = .0023
 ////////////////////////////////////////////////////////////////////////////
 
         /* C6 Convert chroma avgs to quantized, luminance to cos coeffs*/
@@ -267,11 +265,7 @@ void compress40 (FILE *input)
 
         // /* Compress codeword info into 32 bit codewords */
         // methods_p->map_row_major(codeword_info_arr, pack_codewords, codewords);
-        // decompressTest(codewords, uncompressed); // E = .2010
-
-        /* Print out codewords */
-        // todo: note these widths and heights are larger than num codewords
-        //print_codewords(codewords, t_width, t_height);
+        // decompressTest(codewords, uncompressed); // E = .0023
 
 /* bitpack testing
         assert(Bitpack_getu(Bitpack_newu(255, 6, 3, 4), 6, 3) == 4);
@@ -296,7 +290,7 @@ void compress40 (FILE *input)
 
 // todo remove this function, just here for testing
 // todo change input to correct input after compression has been fully implemented --> FILE *input
-void decompressTest(A2Methods_UArray2 codewords, Pnm_ppm uncompressed)
+void decompressTest(A2Methods_UArray2 codeword_info_arr, Pnm_ppm uncompressed)
 {
         /* Initialize plain and blocked methods */
         A2Methods_T methods_p = uarray2_methods_plain;        
@@ -304,10 +298,10 @@ void decompressTest(A2Methods_UArray2 codewords, Pnm_ppm uncompressed)
         assert(methods_b != NULL && methods_p != NULL);
 
         /* Initialize codeword info array */
-        A2Methods_UArray2 codeword_info_arr = methods_p->new(methods_p->width(codewords), methods_p->height(codewords), sizeof(struct cvs_block));
+        // A2Methods_UArray2 codeword_info_arr = methods_p->new(methods_p->width(codewords), methods_p->height(codewords), sizeof(struct cvs_block));
 
-        /* Unpack codewords to codeword info array */
-        methods_p->map_default(codewords, unpack_codewords, codeword_info_arr);
+        // /* Unpack codewords to codeword info array */
+        // methods_p->map_default(codewords, unpack_codewords, codeword_info_arr);
 
         /* Initialize blocked array with component video pixels */ 
         A2Methods_UArray2 comp_vid_arr = 
@@ -758,6 +752,7 @@ unsigned transform_a_to_unsigned(float a)
         return ua;
 }
 
+
 // returns unisgned in b/w -15/15
 signed convert_coeff_to_signed(float coeff)
 {
@@ -868,33 +863,4 @@ void unpack_codewords(int col, int row, A2Methods_UArray2 codewords, void *elem,
         word_info->a = Bitpack_getu(*curr_word, a_WIDTH, a_LSB);
 
        (void)codewords;
-}
-
-void print_codewords(A2Methods_UArray2 codewords, int width, int height)
-{
-        A2Methods_T methods = uarray2_methods_plain;
-
-        printf("COMP40 Compressed image format 2\n%u %u\n", width, height);
-
-        /* Iterate through the codewords and print in Big-Endian */
-        methods->map_row_major(codewords, print_word, NULL);
-
-        (void) codewords;
-}
-
-void print_word(int col, int row, A2Methods_UArray2 codewords, void *elem, void* cl)
-{
-        int64_t *curr_word = (int64_t *)elem;
-
-        //Bitpack_getu(curr_word, a)
-
-        //putchar(*curr_word);
-
-        fprintf(stdout, "word (%d, %d): %ld \n", col, row, *curr_word);
-
-        (void)col;
-        (void)row;
-        (void)cl;
-        (void)codewords;
-        (void)elem;       
 }
