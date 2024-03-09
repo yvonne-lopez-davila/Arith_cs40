@@ -44,6 +44,21 @@ const int BLOCKSIZE = 2;
 const float FL_QUANT_RANGE = 0.3;
 const float D_QUANT_RANGE = 15;
 
+const int64_t Pr_LSB = 0;
+const int64_t Pb_LSB = 4;
+const int64_t d_LSB = 28;
+const int64_t c_LSB = 13;
+const int64_t b_LSB = 18;
+const int64_t a_LSB = 23;
+
+const int64_t Pr_WIDTH = 4;
+const int64_t Pb_WIDTH = 4;
+const int64_t d_WIDTH = 5;
+const int64_t c_WIDTH = 5;
+const int64_t b_WIDTH = 5;
+const int64_t a_WIDTH = 9;
+
+
 // hold floating pt representations of a pixel
         // rgb floats
         // cvs floats
@@ -98,6 +113,8 @@ void fill_transformed_from_rgb_flt(int col, int row, A2Methods_UArray2 curr_arr,
 void fill_transformed_from_rgb_ints(int col, int row, A2Methods_UArray2 trim_arr, void *elem, void *trans_info); // todo maybe merge
 void fill_cvs_float_from_block(int col, int row, A2Methods_UArray2 cvs_arr2b, void *elem, void *codeword_info_arr2p);
 void fill_int_arr_from_rgb_flt(int col, int row, A2Methods_UArray2 curr_arr, void *elem, void *trans_info);
+void pack_codewords(int col, int row, A2Methods_UArray2 word_info_arr, void *elem, void *cl);
+void unpack_codewords(int col, int row, A2Methods_UArray2 codewords, void *elem, void *codeword_info);
 
 /* Transformation (helpers) */
 void transform_rgb_floats_to_cvs(void *elem, struct pixel_float *rgb_pix);
@@ -112,6 +129,7 @@ void set_unquantized_chroma_for_block(struct cvs_block *curr_iWord, struct pixel
 
 int make_even(int dim);
 signed convert_coeff_to_signed(float coeff);
+
 
 struct copy_info *initialize_copy_info(A2Methods_UArray2 prev_arr, A2Methods_T prev_methods, void (*transFun)());
 
@@ -189,49 +207,50 @@ void compress40 (FILE *input)
 
         /* C2/C3 Create trimmed arr of rgb floats */
         // could be loss from trimming and from converting int to float
+        // freed!
         A2Methods_UArray2 trimmed_rgb_flts = 
         create_trimmed_float_arr(uncompressed,
         make_even(uncompressed->width), 
         make_even(uncompressed->height)); // C3 passed
         //decompressTest(trimmed_rgb_flts, uncompressed); // E = 0.0000
 
+        /* Save trimmed width and height */
+        int t_width = methods_p->width(trimmed_rgb_flts);
+        int t_height = methods_p->height(trimmed_rgb_flts);
+
 ////////////////////////////////////////////////////////////////////////////
         /* Initialize blocked array with component video pixels */ 
-         A2Methods_UArray2 comp_vid_arr = 
-         create_blocked_arr(methods_p->width(trimmed_rgb_flts),
-         methods_p->height(trimmed_rgb_flts),
-         sizeof(struct pixel_float), BLOCKSIZE, methods_b);
+         A2Methods_UArray2 comp_vid_arr = create_blocked_arr(
+                t_width, t_height, sizeof(struct pixel_float), BLOCKSIZE, methods_b);
          //decompressTest(comp_vid_arr, uncompressed); // E = .0023
-/*
-         fprintf(stderr, "WIDTH: %d \n", methods_b->width(comp_vid_arr));
-         fprintf(stderr, "HEIGHT: %d \n", methods_b->height(comp_vid_arr));
-*/
 
          /* C4 Updates CVS arr to hold values transformed from RGB floats */
          /* Initialize rgb to cvs transfromation info */
         // struct copy_info *info = initialize_copy_info(trimmed_rgb_flts, methods_p, transform_rgb_floats_to_cvs); // todo free
-
         struct copy_info *info = malloc(sizeof(struct copy_info));
         assert(info != NULL);
 
         info->prev_arr = trimmed_rgb_flts;
         info->prev_methods = methods_p;
         info->transFun = transform_rgb_floats_to_cvs;
-        info->pnm_maxval = -1; // unused here
+        info->pnm_maxval = -1; /* unused here */
 
-         /* Map rgb floats to cvs*/
+         /* Map rgb floats to cvs and free trimmed array */
          methods_b->map_default(comp_vid_arr, fill_transformed_from_rgb_flt, info);
+        methods_p->free(&trimmed_rgb_flts);
+         
   //       printf("COMPRESSION done \n");
         // decompressTest(comp_vid_arr, uncompressed); E = .0023
 ////////////////////////////////////////////////////////////////////////////
 
         /* C6 Convert chroma avgs to quantized, luminance to cos coeffs*/
         /* Initialize array of cvs block coordinates with 1/BLOCKSIZE dims*/
-        A2Methods_UArray2 codeword_info_arr = methods_p->new((methods_p->width(trimmed_rgb_flts)) / BLOCKSIZE, (methods_p->height(trimmed_rgb_flts)) / BLOCKSIZE, sizeof(struct cvs_block));
+        A2Methods_UArray2 codeword_info_arr = methods_p->new( t_width / BLOCKSIZE, t_height / BLOCKSIZE, sizeof(struct cvs_block));
 
         /* Initialize cl info for cvs transformation */
         struct block_info *block_info = malloc(sizeof(struct block_info)); 
         assert(block_info != NULL);
+
         block_info->trans_cvs = codeword_info_arr; // this becomes param of decompress
         block_info->arr_methods = methods_p;
         block_info->counter = 0;
@@ -240,7 +259,13 @@ void compress40 (FILE *input)
         
         /* Populates codeword info array with coords for codeword packing */
         methods_b->map_default(comp_vid_arr, get_packed_cvs_block, block_info);
-        decompressTest(codeword_info_arr, uncompressed); // E = .0023
+        //decompressTest(codeword_info_arr, uncompressed); // E = .0023
+        
+        A2Methods_UArray2 codewords = methods_p->new(t_width / BLOCKSIZE, t_height / BLOCKSIZE, sizeof(int64_t));
+
+        /* Compress codeword info into 32 bit codewords */
+        methods_p->map_row_major(codeword_info_arr, pack_codewords, codewords);
+        decompressTest(codewords, uncompressed); // E = .0023
 
 /* bitpack testing
         assert(Bitpack_getu(Bitpack_newu(255, 6, 3, 4), 6, 3) == 4);
@@ -263,28 +288,20 @@ void compress40 (FILE *input)
         // uncompressed = NULL; //todo ptr make null after 
 }
 
-/********** decompressTest ********
- *
- * Description: 
- *     Test function for decompression
- * Parameters:
- *     A2Methods_UArray2 codeword_info_arr: 2D array of codeword info
- * Return: 
- *      void
- * Expects:
- *      A2Methods_UArray2 codeword_info_arr: 2D array of codeword info
- * Notes:
- *      This function is a test function for decompression. It is not used in the final implementation.
- ************************/
 // todo remove this function, just here for testing
 // todo change input to correct input after compression has been fully implemented --> FILE *input
-void decompressTest(A2Methods_UArray2 codeword_info_arr, Pnm_ppm uncompressed)
+void decompressTest(A2Methods_UArray2 codewords, Pnm_ppm uncompressed)
 {
-
         /* Initialize plain and blocked methods */
         A2Methods_T methods_p = uarray2_methods_plain;        
         A2Methods_T methods_b = uarray2_methods_blocked;
         assert(methods_b != NULL && methods_p != NULL);
+
+        /* Initialize codeword info array */
+        A2Methods_UArray2 codeword_info_arr = methods_p->new(methods_p->width(codewords), methods_p->height(codewords), sizeof(struct cvs_block));
+
+        /* Unpack codewords to codeword info array */
+        methods_p->map_default(codewords, unpack_codewords, codeword_info_arr);
 
         /* Initialize blocked array with component video pixels */ 
         A2Methods_UArray2 comp_vid_arr = 
@@ -357,17 +374,19 @@ void decompressTest(A2Methods_UArray2 codeword_info_arr, Pnm_ppm uncompressed)
         // exit(EXIT_SUCCESS); TODO 
 }
 
-/********** copy_info ********
+/********** cooy_info ********
  *
  * Description: 
- *     Test function for decompression
+ *      Compresses a PPM image to a compressed binary image file
  * Parameters:
- *     A2Methods_UArray2 codeword_info_arr: 2D array of codeword info
+ *      FILE *input:     file pointer to uncompressed image
  * Return: 
  *      void
  * Expects:
- *      A2Methods_UArray2 codeword_info_arr: 2D array of codeword info
- *
+ *      input is a valid file pointer to a PPM image
+ * Notes:
+ *      The function compresses the image and writes the compressed
+ *      binary image to standard output.
  ************************/
 // create and return a struct
 // note: client responsibility to free
@@ -801,4 +820,47 @@ void transform_coeffs_to_luminance(struct cvs_block *curr_iWord, struct pixel_fl
         b4_cvs->r_Y = (float)(curr_iWord->a + curr_iWord->b + curr_iWord->c + curr_iWord->d);
 
         //fprintf(stdout, "Luminance: %.4f \n", b1_cvs->r_Y);        
+}
+
+void pack_codewords(int col, int row, A2Methods_UArray2 word_info_arr, void *elem, void *codewords_arr)
+{
+        A2Methods_T methods = uarray2_methods_plain;
+
+        A2Methods_UArray2 codewords = (A2Methods_UArray2 *)codewords_arr;
+        struct cvs_block *word_info = (struct cvs_block *)elem;
+
+        int64_t *curr_word = methods->at(codewords, col, row);
+
+        /* Pack bits in Big-Endian Order (MSB first) */
+        Bitpack_newu(*curr_word, Pr_WIDTH, Pr_LSB, word_info->Pr_index);
+        Bitpack_newu(*curr_word, Pb_WIDTH, Pb_LSB, word_info->Pb_index);
+        Bitpack_news(*curr_word, d_WIDTH, d_LSB, word_info->d);
+        Bitpack_news(*curr_word, c_WIDTH, c_LSB, word_info->c);
+        Bitpack_news(*curr_word, b_WIDTH, b_LSB, word_info->b);
+        Bitpack_newu(*curr_word, a_WIDTH, a_LSB, word_info->a);
+
+        fprintf(stderr, "codeword: %lu \n", *curr_word);
+
+        (void)word_info_arr;
+}
+
+void unpack_codewords(int col, int row, A2Methods_UArray2 codewords, void *elem, void *codeword_info)
+{
+        /* Set types for codeword and codeword info arrays */
+        A2Methods_UArray2 word_info_arr = (A2Methods_UArray2 *)codeword_info;
+        int64_t *curr_word = (int64_t *)elem;
+
+        /* Get pointer to corresponding unpacked codeword index */
+        A2Methods_T methods = uarray2_methods_plain;
+        struct cvs_block *word_info = methods->at(word_info_arr, col, row);
+
+        /* Extract fields from codeword and populate info array */
+        word_info->Pr_index = Bitpack_getu(*curr_word, Pr_WIDTH, Pr_LSB);
+        word_info->Pb_index = Bitpack_getu(*curr_word, Pb_WIDTH, Pb_LSB);
+        word_info->d = Bitpack_gets(*curr_word, d_WIDTH, d_LSB);
+        word_info->c = Bitpack_gets(*curr_word, c_WIDTH, c_LSB);
+        word_info->b = Bitpack_gets(*curr_word, Pr_WIDTH, Pr_LSB);
+        word_info->a = Bitpack_getu(*curr_word, a_WIDTH, a_LSB);
+
+       (void)codewords;
 }
