@@ -42,21 +42,21 @@ const float FL_QUANT_RANGE = 0.3; /* Upper coeff float val */
 const float D_QUANT_RANGE = 15;   /* Upper coeff unsigned val */
 const unsigned CHAR_BITS = 8;     /* Num bits in a char */
 const unsigned WORD_BITS = 32;    /* Num bits in packed word */
-const float BITS9_MAX = 511;  /* Max int within 9-bit rep */
+const float BITS9_MAX = 63;  /* Max int within 9-bit rep */
 
 const int64_t Pr_LSB = 0;
 const int64_t Pb_LSB = 4;
 const int64_t d_LSB = 8;
-const int64_t c_LSB = 13;
-const int64_t b_LSB = 18;
-const int64_t a_LSB = 23;
+const int64_t c_LSB = 14;
+const int64_t b_LSB = 20;
+const int64_t a_LSB = 26;
 
 const int64_t Pr_WIDTH = 4;
 const int64_t Pb_WIDTH = 4;
-const int64_t d_WIDTH = 5;
-const int64_t c_WIDTH = 5;
-const int64_t b_WIDTH = 5;
-const int64_t a_WIDTH = 9;
+const int64_t d_WIDTH = 6;
+const int64_t c_WIDTH = 6;
+const int64_t b_WIDTH = 6;
+const int64_t a_WIDTH = 6;
 
 
 /********** pixel_float *************

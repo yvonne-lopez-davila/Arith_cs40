@@ -1,0 +1,47 @@
+********************************************
+*              README                      *
+*                                          *
+*       Assignment HW4: Arith              *
+*       Date: 3/9/2024                     *
+*       README file HW4 Arith Program      *
+*                                          *
+*    Includes acknowledgements, known      *
+*    implementation limitations,           *
+*    and time spent                        *
+********************************************
+
+AUTHORS: 
+
+    Yvonne Lopez Davila (ylopez02) and Caroline Shaw (cshaw03)
+
+ARCHITECTURE:
+    40image.c: Compresses and decompresses files, as specified in 
+               commandline arguments
+    Compress and Decompress are implemented in inverse order, where each 
+    function has an analagous function in the opposite process. We divided
+    the functions into several categories: 
+        - mapping functions: used for mapping from one pixel representation
+                             to another (typically apply functions that 
+                             map from one array to another)
+        - transformation:    used for actual calculations when mapping from
+                             one type to another
+        - printing functions
+        - compression functions
+        - decompression functions
+        - other functions/utility functions
+    
+    Bitpack.c
+        Contains functions used to pack, unpack, codewords.
+
+    A2Methods Files/Functions: Allow 2D array modification, access, etc.
+
+HELP RECEIVED:
+
+    Office hours: Thank you to TAs, especially Catherine, Tim and Andrew
+
+IMPLEMENTATION NOTES:
+    There are no bugs to our knowledge.
+
+HOURS SPENT:
+    Design/Analyzing problems: around 20 hours
+    Implementation: around 30 hours

@@ -644,8 +644,6 @@ void init_floats_from_rgb_ints(void *elem, Pnm_rgb pix_val, unsigned maxval)
         curr_pix->r_Y = (float)pix_val->red / maxval;
         curr_pix->g_Pb = (float)pix_val->green / maxval;
         curr_pix->b_Pr = (float)pix_val->blue / maxval;        
-
-        fprintf(stderr, "Red in transform: %u\n", pix_val->red);
 }
 
 // apply TODO (function contract)
