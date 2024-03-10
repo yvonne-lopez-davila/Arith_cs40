@@ -49,7 +49,24 @@ range: 0 to (2^n) - 1
 // "can n be represented in width bits?"
 // edge cases to test: n = 0, width = 64, n = -1, n = 2.2 
 // (n = 256, w = 8) --> Out of range // this edge passed
-//function contract- Bitpack_fitsu
+/********** Bitpack_fitsu ********
+ *
+ * Description: 
+ *      Checks if an unsigned integer value fits within the specified width.
+ * Parameters:
+ *      n: The unsigned integer value to be checked.
+ *      width: The width of the representation in bits.
+ * Return: 
+ *      True if the value can be represented within the specified width; 
+ *      false otherwise.
+ * Expects:
+ *      The width parameter is less than or equal to the maximum 
+ *      width (MAX_WIDTH).
+ * Notes:
+ *      function checks if the unsigned integer value falls within the range
+ *      that can be represented by the specified width.
+ ************************/
+
 bool Bitpack_fitsu(uint64_t n, unsigned width)
 {
     assert(width <= MAX_WIDTH);
@@ -60,13 +77,11 @@ bool Bitpack_fitsu(uint64_t n, unsigned width)
     if (width == MAX_WIDTH) {
         /* Handle shifts by 64 */
         u_bound = (U1 << (width - 1)); /* (2^63) */
-        u_bound = (u_bound * 2) - 1;
+        u_bound = (u_bound * 2) - 1; /* 2-64 -1*/
     } 
     else {
         u_bound = ((U1 << width) - U1); /* (2^n) - 1, inclusive */
     }    
-
-    fprintf(stderr, "ubound: %lu \n", u_bound);
 
     return (n <= u_bound);
 }
@@ -77,7 +92,26 @@ range: -2^(n-1) to (2^(n-1) - 1)
 (ex: for 8 bits, -128 to 127) // passed
 */
 // todo this works for 64... but prev does not
-//function contract- Bitpack_fitss
+/********** Bitpack_fitss ********
+ *
+ * Description: 
+ *      Checks if a signed integer value fits within the specified width when
+ *      represented in two's complement format.
+ * Parameters:
+ *      n: The signed integer value to be checked.
+ *      width: The width of the representation in bits.
+ * Return: 
+ *      True if the value can be represented within the specified width; 
+ *      false otherwise.
+ * Expects:
+ *      The width parameter is less than or equal to the maximum width 
+ *      (MAX_WIDTH).
+ * Notes:
+ *      function checks if the signed integer value falls within the range that
+ *      can be represented by the specified width using two's complement
+ *      representation.
+ ************************/
+
 bool Bitpack_fitss( int64_t n, unsigned width)
 {  
     assert(width <= MAX_WIDTH);
@@ -90,8 +124,6 @@ bool Bitpack_fitss( int64_t n, unsigned width)
     // todo: verify that these equations work
     int64_t neg_bound = -1 * (S1 << (width - S1));  /* (2^(n-1) inclusive */
     int64_t pos_bound = ~(neg_bound); /* (2^(n-1) - 1) inclusive */ 
-
-    fprintf(stderr, "ubound, lbound: %ld, %ld\n", pos_bound, neg_bound);
 
     /* Return if in range that can be represented by width bits*/
     return ((n >= neg_bound) && (n <= pos_bound)); 
@@ -108,7 +140,25 @@ bool Bitpack_fitss( int64_t n, unsigned width)
 // n extracts a field from a word given the width of the field and the location of the field’s least significant
 // bit
 // todo test this
-//function contract- Bitpack_getu
+/********** Bitpack_getu ********
+ *
+ * Description: 
+ *      Extracts an unsigned value from a word with the specified width and
+ *      least significant bit (lsb) position.
+ * Parameters:
+ *      word: The word from which the value will be extracted.
+ *      width: The width of the value.
+ *      lsb: The least significant bit position of the value within the word.
+ * Return: 
+ *      The extracted unsigned value.
+ * Expects:
+ *      -The width parameter is less than or equal to 64.
+ *      -The sum of width and lsb is less than or equal to 64.
+ * Notes:
+ *      extracts the value from the word by masking it and then shifting it
+ *      to the least significant bit position.
+ ************************/
+
 uint64_t Bitpack_getu(uint64_t word, unsigned width, unsigned lsb)
 {
     assert(width <= 64);
@@ -125,23 +175,71 @@ uint64_t Bitpack_getu(uint64_t word, unsigned width, unsigned lsb)
 }
 
 // todo: not sure if this should be more different from prev (only change is the type of subword?)
-//function contract- Bitpack_gets
+/********** Bitpack_gets ********
+ *
+ * Description: 
+ *      Extracts a signed value from a word with the specified width and least 
+ *      significant bit (lsb) position.
+ * Parameters:
+ *      word: The word from which the value will be extracted.
+ *      width: The width of the value.
+ *      lsb: The least significant bit position of the value within the word.
+ * Return: 
+ *      The extracted signed value.
+ * Expects:
+ *      -The width parameter is less than or equal to 64.
+ *      -The sum of width and lsb is less than or equal to 64.
+ * Notes:
+ *      function extracts the value from the word by masking it and then
+ *      shifting it to the least significant bit position.
+ ************************/
+
 int64_t Bitpack_gets(uint64_t word, unsigned width, unsigned lsb)
 {
     assert(width <= 64);
     assert((width + lsb) <= 64);
     
     /* Create mask with ones at indices of word and zeroes elsewhere */
-    uint64_t mask = ~0; /* 64-bit binary with all ones */
+    int64_t mask = ~0; /* 64-bit binary with all ones */
     mask = mask >> (64 - width) << lsb;
 
     /* Extract word using mask (shifted to ones place) */
     int64_t subword = (mask & word) >> lsb;
 
+    subword = (subword << (MAX_WIDTH - width)) >> (MAX_WIDTH - width);
+
+    // /* Determine if subword is negative by checking subword MSB */
+    // int64_t sub_msb = subword >> (width - 1); /* Move MSB in lsb == 0*/
+
+    // /* Initialize negative bit representation if subword MSB == 1 */
+    // if (sub_msb == 1) {
+    //     subword = ~subword + 1;
+    // }
+
     return subword;
 }
 
-//function contract- Bitpack_newu
+/********** Bitpack_newu ********
+ *
+ * Description: 
+ *      Updates a word by inserting a new unsigned value with the specified
+ *      width at the specified least significant bit (lsb) position.
+ * Parameters:
+ *      word: The original word to be updated.
+ *      width: The width of the new value.
+ *      lsb: The least significant bit position where the new value will be 
+ *                                                                  inserted.
+ *      value: The new unsigned value to be inserted.
+ * Return: 
+ *      The updated word with the new value inserted at the specified position.
+ * Expects:
+ *      -The width parameter is less than or equal to 64.
+ *      -The value fits within the specified width.
+ * Notes:
+ *      updates the word by clearing bits from lsb to (lsb + width - 1) and 
+ *      then inserting the new value at the cleared positions.
+ ************************/
+
 uint64_t Bitpack_newu(uint64_t word, unsigned width, unsigned lsb, uint64_t value)
 {
     /* Check that width is in range and value fits in width bits */
@@ -171,7 +269,27 @@ uint64_t Bitpack_newu(uint64_t word, unsigned width, unsigned lsb, uint64_t valu
     return new_word;
 }
 
-//function contract- Bitpack_news
+/********** Bitpack_news ********
+ *
+ * Description: 
+ *      Updates a word by inserting a new value with the specified width at 
+ *      the specified least significant bit (lsb) position.
+ * Parameters:
+ *      word: The original word to be updated.
+ *      width: The width of the new value.
+ *      lsb: The least significant bit position where the new value will be 
+ *                                                                  inserted.
+ *      value: The new value to be inserted.
+ * Return: 
+ *      The updated word with the new value inserted at the specified position.
+ * Expects:
+ *      -The width parameter is less than or equal to 64.
+ *      -The value fits within the specified width.
+ * Notes:
+ *      updates the word by clearing bits from lsb to (lsb + width - 1) and then 
+ *      inserting the new value at the cleared positions.
+ ************************/
+
 uint64_t Bitpack_news(uint64_t word, unsigned width, unsigned lsb,  int64_t value)
 {
     /* Check that width is in range and value fits in width bits */

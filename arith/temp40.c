@@ -263,15 +263,15 @@ void compress40 (FILE *input)
         methods_b->map_default(comp_vid_arr, get_packed_cvs_block, block_info);
         decompressTest(codeword_info_arr, uncompressed); // E = .0023
         
-        // A2Methods_UArray2 codewords = methods_p->new(t_width / BLOCKSIZE, t_height / BLOCKSIZE, sizeof(int64_t));
+        A2Methods_UArray2 codewords = methods_p->new(t_width / BLOCKSIZE, t_height / BLOCKSIZE, sizeof(int64_t));
 
-        // /* Compress codeword info into 32 bit codewords */
-        // methods_p->map_row_major(codeword_info_arr, pack_codewords, codewords);
-        // decompressTest(codewords, uncompressed); // E = .2010
+        /* Compress codeword info into 32 bit codewords */
+        methods_p->map_row_major(codeword_info_arr, pack_codewords, codewords);
+        decompressTest(codewords, uncompressed); // E = .2010
 
         /* Print out codewords */
-        // todo: note these widths and heights are larger than num codewords
-        //print_codewords(codewords, t_width, t_height);
+//        todo: note these widths and heights are larger than num codewords
+        print_codewords(codewords, t_width, t_height);
 
 /* bitpack testing
         assert(Bitpack_getu(Bitpack_newu(255, 6, 3, 4), 6, 3) == 4);
@@ -832,7 +832,8 @@ void pack_codewords(int col, int row, A2Methods_UArray2 word_info_arr, void *ele
         A2Methods_T methods = uarray2_methods_plain;
 
         A2Methods_UArray2 codewords = (A2Methods_UArray2 *)codewords_arr;
-        struct cvs_block *word_info = (struct cvs_block *)elem;
+        struct cvs_block
+         *word_info = (struct cvs_block *)elem;
 
         int64_t *curr_word = methods->at(codewords, col, row);
 
